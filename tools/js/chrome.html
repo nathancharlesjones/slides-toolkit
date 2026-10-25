@@ -1,0 +1,23 @@
+<script>
+/* Slide chrome: a footer inside every slide (so it scales with the slide),
+ * with the turtle, the wordmark, the deck title, and "n / N".
+ * Layout CSS decides where (or whether) each piece shows.
+ * Hide it on one slide with:  ## Title {.no-footer}
+ */
+(function () {
+  const TURTLE = '<svg viewBox="58.6 38.6 142.8 187.8" aria-hidden="true"><path fill="#046307" stroke="#046307" stroke-width="7.5" stroke-linejoin="round" d="M130.0 42.6 115.0 57.6 122.5 87.6 100.0 110.0 77.6 95.0 62.6 102.5 85.0 125.0 77.6 155.0 92.5 185.0 70.1 207.4 85.0 222.4 100.0 199.9 130.0 214.9 160.0 199.9 175.0 222.4 189.9 207.4 167.5 185.0 182.4 155.0 175.0 125.0 197.4 102.5 182.4 95.0 160.0 110.0 137.5 87.6 145.0 57.6Z"/></svg>';
+  const deck = (document.querySelector('#title-slide .title') || {}).textContent || '';
+  const slides = [...document.querySelectorAll('.reveal .slides section')]
+    .filter(s => !s.querySelector('section'));            // leaf slides, in order
+  const counted = slides.filter(s => !s.closest('section.hidden'));   // hidden slides aren't counted
+  slides.forEach(s => {
+    const i = counted.indexOf(s);
+    const f = document.createElement('div');
+    f.className = 'lt-footer';
+    f.innerHTML = `${TURTLE}<span class="lt-brand">LightTurtles</span>` +
+                  `<span class="lt-deck"></span><span class="lt-num">${i < 0 ? 'hidden' : (i + 1) + ' / ' + counted.length}</span>`;
+    f.querySelector('.lt-deck').textContent = deck;
+    s.appendChild(f);
+  });
+})();
+</script>

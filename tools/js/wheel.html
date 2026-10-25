@@ -1,0 +1,46 @@
+<script>
+/* Scroll wheel navigation: down = next step, up = previous.
+ *  - One step per gesture: after a step, further wheel events are ignored until the
+ *    wheel has been quiet briefly, so a flick or trackpad momentum doesn't skip slides.
+ *  - Sideways scrolling is ignored.
+ *  - The wheel is left alone over things that use it: form controls, the zoom picker,
+ *    anything that can itself scroll in that direction (e.g. a long code block), and
+ *    anything inside an element with class "no-wheel".
+ */
+(function () {
+  const QUIET_MS = 220;      // gap that ends a gesture
+  const THRESHOLD = 30;      // pixels of scroll before a step (filters tiny trackpad touches)
+  let locked = false, sum = 0, quietTimer = 0;
+
+  const scrollableY = (el, down) => {
+    for (; el && el !== document.body; el = el.parentElement) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 1) {
+        if (down ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0) return true;
+      }
+    }
+    return false;
+  };
+
+  document.addEventListener('wheel', e => {
+    if (e.ctrlKey) return;                                       // pinch-zoom / ctrl+wheel: browser zoom
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;         // sideways
+    const t = e.target;
+    if (t.closest && t.closest('input, select, textarea, .zt-pick, .zt-pick-panel, .no-wheel')) return;
+    const down = e.deltaY > 0;
+    if (scrollableY(t, down)) return;                            // let the code block (etc.) scroll
+
+    e.preventDefault();
+    clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => { locked = false; sum = 0; }, QUIET_MS);
+    if (locked) return;
+
+    const px = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * 800 : e.deltaY;
+    sum += px;
+    if (Math.abs(sum) < THRESHOLD) return;
+    const forward = sum > 0;
+    locked = true; sum = 0;
+    forward ? Reveal.next() : Reveal.prev();
+  }, { passive: false });
+})();
+</script>

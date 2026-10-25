@@ -1,0 +1,47 @@
+/* ==========================================================================
+   Layout: rail
+   A green rail down the left edge of every slide, turtle at its foot.
+   Title slide: the rail widens into a panel. Section breaks: full green.
+   ========================================================================== */
+
+:root {
+  --lt-rail: 136px;
+  --lt-pad-left: calc(var(--lt-rail) + 104px);
+  --lt-pad-top: 84px;
+}
+
+.reveal .slides section.slide:not(.zoomtour)::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--lt-rail);
+  background: var(--lt-primary) url("../brand/turtle-paper.svg") center bottom 48px / 64px auto no-repeat;
+}
+.reveal section.slide.level2:not(.statement):not(.zoomtour) > h2 { font-size: 64px; }
+
+/* the rail carries the brand, so the footer just shows title + number */
+.reveal .lt-footer svg, .reveal .lt-footer .lt-brand { display: none; }
+
+/* title slide: wide panel with a big turtle, text to its right */
+.reveal #title-slide {
+  --lt-panel-w: 620px;
+  display: flex !important; flex-direction: column; justify-content: center;
+  padding-left: calc(var(--lt-panel-w) + 120px);
+}
+.reveal #title-slide::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--lt-panel-w);
+  background: var(--lt-primary) url("../brand/turtle-paper.svg") center 42% / 260px auto no-repeat;
+}
+.reveal #title-slide::after {
+  content: "LightTurtles"; position: absolute; left: 0; width: var(--lt-panel-w); bottom: 96px;
+  text-align: center; color: var(--lt-paper);
+  font: 500 40px/1 var(--lt-font-mono); letter-spacing: 0.08em;
+}
+.reveal #title-slide .title { font-size: 96px; }
+
+/* section dividers: full green, giant faint turtle */
+.reveal section.slide.level1 {
+  display: flex !important; flex-direction: column; justify-content: center;
+  background: var(--lt-primary) url("../brand/turtle-ghost.svg") right -60px center / 720px auto no-repeat;
+  padding-left: 180px;
+}
+.reveal section.slide.level1::before { display: none; }
+.reveal section.slide.level1 > h1 { color: var(--lt-paper); max-width: 1100px; }
+.reveal section.slide.level1 .lt-footer { color: rgb(248 247 243 / 0.75); left: 180px; }

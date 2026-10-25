@@ -1,0 +1,34 @@
+<script>
+/* Keep the keyboard driving the deck.
+ * reveal.js ignores arrow keys while an <input>/<select>/<textarea> has focus,
+ * so an in-slide widget can silently "steal" navigation. This:
+ *   - drops focus whenever the slide changes,
+ *   - drops focus from sliders, buttons, checkboxes, and dropdowns once you've used them with the mouse,
+ *   - lets Esc hand focus back to the deck from anything (text boxes included).
+ * Text inputs keep focus while you type, so typing in a widget still works.
+ */
+(function () {
+  const release = () => {
+    const el = document.activeElement;
+    if (el && el !== document.body && typeof el.blur === 'function') el.blur();
+  };
+  const isTypingField = el =>
+    el.isContentEditable || el.tagName === 'TEXTAREA' ||
+    (el.tagName === 'INPUT' && !/^(range|button|submit|reset|checkbox|radio|color|file)$/i.test(el.type));
+
+  Reveal.on('slidechanged', release);
+
+  // Mouse/touch use of a control: give focus back once the interaction ends.
+  document.addEventListener('pointerup', e => {
+    const el = e.target.closest && e.target.closest('input, button, select, summary, [tabindex]');
+    if (el && !isTypingField(el)) setTimeout(release, 0);
+  }, true);
+  document.addEventListener('change', e => { if (e.target.tagName === 'SELECT') release(); }, true);
+
+  // Esc always returns the keyboard to the deck (capture phase, before reveal's own Esc = overview).
+  document.addEventListener('keydown', e => {
+    const el = document.activeElement;
+    if (e.key === 'Escape' && el && el !== document.body) { release(); e.stopPropagation(); e.preventDefault(); }
+  }, true);
+})();
+</script>

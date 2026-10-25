@@ -1,0 +1,36 @@
+# Pandoc defaults for LightTurtles decks.
+# Paths use ${.} (this file's folder) so the build works from anywhere.
+from: markdown+fenced_divs+bracketed_spans+raw_html+implicit_figures
+to: revealjs
+standalone: true
+template: ${.}/../templates/revealjs.html   # pandoc's template + phone fixes (see its header)
+embed-resources: true        # one self-contained .html file: fonts, images, JS, CSS all inlined
+slide-level: 2               # "## Heading" starts a slide; "# Heading" starts a section
+reference-location: section  # footnotes appear on the slide that cites them
+highlight-style: ${.}/../theme/code.theme
+
+css:
+  - ${.}/../theme/lightturtles.css
+
+include-after-body:
+  - ${.}/../js/zoomtour.html
+  - ${.}/../js/chrome.html
+  - ${.}/../js/hidden.html
+  - ${.}/../js/focus.html
+  - ${.}/../js/wheel.html
+
+variables:
+  theme: white               # reveal base theme; lightturtles.css overrides its variables
+  width: 1920
+  height: 1080
+  margin: 0
+  center: false              # top-aligned slides, like a document
+  transition: fade
+  transitionSpeed: fast
+  backgroundTransition: fade
+  navigationMode: linear     # arrows step through every slide in order; # sections no longer make vertical columns
+  hash: true                 # URL tracks the current slide; reload keeps your place
+  controls: false            # on-screen arrows off (the template turns them on for touch screens)
+  slideNumber: false         # numbering lives in each slide's footer (js/chrome.html)
+  progress: true
+  pdfSeparateFragments: true # each build step / zoom stop becomes its own PDF page

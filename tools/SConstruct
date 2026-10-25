@@ -1,0 +1,197 @@
+# LightTurtles slide toolkit
+#
+# Run from a work folder through the `slides` wrapper (or `scons WORK=<dir>` from the kit):
+#   slides                     build every deck in this folder → <name>.html beside <name>.md
+#   slides example             build one deck (HTML)
+#   slides example.pdf         build one deck (PDF, one page per build step)
+#   slides pdf                 build every deck in this folder as PDF
+#   slides new=example         start example.md here from skeleton.md
+#   slides watch=example       rebuild a deck whenever its sources change (Ctrl-C to stop)
+#   slides -c                  remove this folder's built .html/.pdf files
+#
+# Options (e.g. `slides example.pdf CHROME=/usr/bin/chromium`):
+#   CHROME=<path>              use an installed Chrome/Chromium for PDF export
+#   DECKTAPE_FLAGS="<flags>"   extra decktape flags, e.g. --chrome-arg=--no-sandbox when running as root
+#   HIDDEN=show                include {.hidden} slides in the PDF (e.g. a speaker's copy)
+#   LAYOUT=<name>              build with this layout instead of the deck's own (to preview)
+#   WORK=<dir>                 work folder to build (default: the folder you ran from)
+#
+# A deck is any *.md in the work folder that begins with YAML front matter (---).
+# Pick its look with `layout: notebook | rail | banner | frame` in that front matter.
+
+import os
+import re
+import shlex
+import subprocess
+import sys
+import time
+import urllib.parse
+
+KIT      = Dir('#').abspath
+DEFAULTS = File('#defaults/lightturtles.yaml')
+REVEAL   = os.path.join(KIT, 'node_modules', 'reveal.js')
+
+LAYOUTS = sorted(os.path.splitext(f)[0] for f in os.listdir(os.path.join(KIT, 'theme', 'layouts'))
+                 if f.endswith('.css'))
+
+vars = Variables(None, ARGUMENTS)
+vars.Add('CHROME', 'Chrome/Chromium executable for PDF export', '')
+vars.Add('DECKTAPE_FLAGS', 'Extra decktape flags', '')
+vars.Add(EnumVariable('HIDDEN', 'Hidden slides in the PDF: hide (default) or show', 'hide',
+                      allowed_values=('hide', 'show'), map={'no': 'hide', 'yes': 'show', 'true': 'show', 'false': 'hide'},
+                      ignorecase=2))
+vars.Add('LAYOUT', "Override every deck's layout (" + ', '.join(LAYOUTS) + ')', '')
+vars.Add('WORK', 'Work folder holding the decks (default: where you ran from)', GetLaunchDir())
+vars.Add('new', 'Create <name>.md in the work folder from skeleton.md', '')
+vars.Add('watch', 'Rebuild this deck whenever its sources change', '')
+
+# Pass the user's environment through so pandoc, node/npx, and HOME are found as in the shell.
+env = Environment(variables=vars, ENV=os.environ.copy())
+USAGE = '\n'.join(l[2:] for l in open(File('#SConstruct').abspath).read().split('\n\n')[0].splitlines()[2:])
+Help(USAGE + '\n\n' + vars.GenerateHelpText(env))
+
+if GetOption('help'):
+    Return()
+
+WORK = os.path.abspath(os.path.expanduser(env['WORK']))
+if not os.path.isdir(WORK):
+    sys.exit(f'Work folder not found: {WORK}')
+if os.path.commonpath([WORK, KIT]) == KIT:
+    sys.exit('Run this from a work folder, not from inside the kit (or pass WORK=<dir>).')
+
+
+def is_deck(path):
+    try:
+        with open(path, encoding='utf-8') as f:
+            return f.readline().strip() == '---'
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def front_matter_layout(path):
+    """Value of `layout:` in the deck's YAML front matter, if any."""
+    with open(path, encoding='utf-8') as f:
+        f.readline()                                    # opening ---
+        for line in f:
+            if line.strip() in ('---', '...'):
+                break
+            m = re.match(r'layout\s*:\s*["\']?([\w-]+)', line)
+            if m:
+                return m.group(1)
+    return None
+
+
+def decks():
+    return sorted(os.path.splitext(fn)[0] for fn in os.listdir(WORK)
+                  if fn.endswith('.md') and is_deck(os.path.join(WORK, fn)))
+
+
+def work_files():
+    """Everything in the work folder a deck might use, minus build outputs and hidden folders."""
+    outputs = {n + ext for n in decks() for ext in ('.html', '.pdf')}
+    for dirpath, dirnames, files in os.walk(WORK):
+        dirnames[:] = [d for d in dirnames if not d.startswith('.') and d != 'node_modules']
+        for fn in files:
+            if fn.startswith('.') or (dirpath == WORK and fn in outputs):
+                continue
+            yield os.path.join(dirpath, fn)
+
+
+# ---------- slides new=<name> ----------
+if env['new']:
+    name = env['new'][:-3] if env['new'].endswith('.md') else env['new']
+    target = os.path.join(WORK, name + '.md')
+    if os.path.exists(target):
+        sys.exit(f'{target} already exists')
+    with open(File('#skeleton.md').abspath) as f:
+        text = f.read().replace('{{TITLE}}', name)
+    with open(target, 'w') as f:
+        f.write(text)
+    print(f'→ {target}')
+    Exit(0)
+
+
+# ---------- slides watch=<name> ----------
+if env['watch']:
+    name = env['watch']
+    kit_dirs = [os.path.join(KIT, d) for d in ('theme', 'js', 'defaults')]
+
+    def snapshot():
+        paths = list(work_files())
+        for top in kit_dirs:
+            for dirpath, _, files in os.walk(top):
+                paths += [os.path.join(dirpath, fn) for fn in files]
+        return {p: os.stat(p).st_mtime for p in paths if os.path.exists(p)}
+
+    print(f'Watching {name} in {WORK} (Ctrl-C to stop)…')
+    last = None
+    try:
+        while True:
+            now = snapshot()
+            if now != last:
+                last = now
+                subprocess.call([sys.executable, sys.argv[0], '-Q', f'WORK={WORK}', name], cwd=KIT)
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        Exit(0)
+
+
+# ---------- npm dependencies (reveal.js, decktape) ----------
+npm = env.Command(os.path.join(REVEAL, 'package.json'), '#package.json', 'npm install')
+env.NoClean(npm)
+
+
+# ---------- decks ----------
+def tree(*dirs):
+    return [File(os.path.join(dp, fn)) for d in dirs
+            for dp, _, fns in os.walk(os.path.join(KIT, d)) for fn in fns]
+
+
+shared = [DEFAULTS] + tree('theme', 'js', 'templates')
+
+# Commands as argument lists: each element stays one argument, so paths with spaces just work.
+pandoc_cmd = [[
+    'pandoc', '$SOURCE', '--defaults=' + DEFAULTS.abspath,
+    '--resource-path=${SOURCE.dir.abspath}:' + KIT,
+    '--css=$LAYOUT_CSS',
+    '-V', 'revealjs-url=' + REVEAL,
+    '-o', '$TARGET',
+]]
+
+decktape_cmd = [[
+    'npx', 'decktape', 'reveal', '--size', '1920x1080', '--pause', '1300', '--fragments',
+    *(['--chrome-path', env['CHROME']] if env['CHROME'] else []),
+    *shlex.split(env['DECKTAPE_FLAGS']),
+    '$URL', '$TARGET',
+]]
+
+all_html, all_pdf = [], []
+for name in decks():
+    md = File(os.path.join(WORK, name + '.md'))
+    assets = [File(p) for p in work_files() if p != md.abspath and not
+              (p.endswith('.md') and is_deck(p))]
+
+    layout = env['LAYOUT'] or front_matter_layout(md.abspath) or 'notebook'
+    if layout not in LAYOUTS:
+        sys.exit(f'{name}.md: unknown layout "{layout}" (choose from: {", ".join(LAYOUTS)})')
+    layout_css = os.path.join(KIT, 'theme', 'layouts', layout + '.css')
+
+    html = env.Command(os.path.join(WORK, name + '.html'), md, pandoc_cmd, LAYOUT_CSS=layout_css)
+    env.Depends(html, shared + assets + npm)
+
+    url = 'file://' + urllib.parse.quote(html[0].abspath) + '?static' + ('+showhidden' if env['HIDDEN'] == 'show' else '')
+    pdf = env.Command(os.path.join(WORK, name + '.pdf'), html, decktape_cmd, URL=url)
+    env.Depends(pdf, npm)
+    env.Clean(html, pdf)          # `slides -c` / `slides -c <deck>` also removes the PDF
+
+    env.Alias(name, html)
+    env.Alias(name + '.pdf', pdf)
+    all_html += html
+    all_pdf += pdf
+
+if not all_html and not COMMAND_LINE_TARGETS:
+    print(f'No decks in {WORK} (a deck is a .md file that starts with --- front matter).')
+
+env.Alias('html', all_html)
+env.Alias('pdf', all_pdf)
+Default(all_html)

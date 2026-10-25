@@ -1,0 +1,61 @@
+/* ==========================================================================
+   Layout: banner
+   Each slide title sits in a full-width green header band, with the turtle
+   and name at its right end. Title slide: all green, full logo as a badge.
+   Section breaks: a green band across the middle of the slide.
+   ========================================================================== */
+
+:root { --lt-band-h: 176px; --lt-pad-top: 0px; }
+
+.reveal section.slide.level2:not(.statement):not(.zoomtour) > h2 {
+  box-sizing: border-box;
+  height: var(--lt-band-h);
+  margin: 0 calc(-1 * var(--lt-pad-right)) 64px calc(-1 * var(--lt-pad-left));
+  padding: 0 520px 0 var(--lt-pad-left);
+  display: flex; align-items: center;
+  background: var(--lt-primary); color: var(--lt-paper);
+  font-size: 58px; line-height: 1.1;
+  position: relative;
+}
+.reveal section.slide.level2:not(.statement):not(.zoomtour) > h2::after {
+  content: "LightTurtles"; position: absolute; right: var(--lt-pad-right); top: 50%; transform: translateY(-50%);
+  padding-left: 56px; height: 52px; line-height: 52px;
+  background: url("../brand/turtle-paper.svg") left center / auto 48px no-repeat;
+  font: 500 30px/52px var(--lt-font-mono); letter-spacing: 0.06em; color: rgb(248 247 243 / 0.85);
+}
+/* on green-background slides, edge the band so it doesn't vanish */
+.reveal section.has-dark-background.slide.level2 > h2 { box-shadow: inset 0 -3px 0 rgb(248 247 243 / 0.35); }
+/* statements keep the band look as a thin top stripe */
+.reveal section.statement { border-top: 24px solid var(--lt-primary); }
+
+/* brand is in the band, so the footer shows only title + number */
+.reveal .lt-footer svg, .reveal .lt-footer .lt-brand { display: none; }
+
+/* title slide */
+.reveal #title-slide {
+  display: flex !important; flex-direction: column; justify-content: center;
+  padding-left: 160px; padding-top: 140px;
+  background: var(--lt-primary);
+}
+.reveal #title-slide::before {
+  content: ""; position: absolute; left: 160px; top: 96px; width: 760px; height: 134px; /* logo-full.svg is 5.7:1 */
+  background: url("../brand/logo-full.svg") left center / contain no-repeat;
+}
+.reveal #title-slide .title    { color: var(--lt-paper); font-size: 100px; max-width: 1500px; }
+.reveal #title-slide .subtitle { color: rgb(248 247 243 / 0.82); }
+.reveal #title-slide .author   { color: var(--lt-paper); }
+.reveal #title-slide .date     { color: rgb(248 247 243 / 0.7); }
+
+/* section dividers: a band through the middle */
+.reveal section.slide.level1 {
+  display: flex !important; flex-direction: column; justify-content: center; padding: 0;
+}
+.reveal section.slide.level1 > h1 {
+  background: var(--lt-primary); color: var(--lt-paper);
+  padding: 72px 160px 72px 296px; position: relative;
+}
+.reveal section.slide.level1 > h1::before {
+  content: ""; position: absolute; left: 160px; top: 50%; transform: translateY(-50%);
+  width: 84px; height: 106px; background: url("../brand/turtle-paper.svg") center / contain no-repeat;
+}
+.reveal section.slide.level1 .lt-footer { left: 160px; right: 160px; }

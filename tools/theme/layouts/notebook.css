@@ -1,0 +1,43 @@
+/* ==========================================================================
+   Layout: notebook (default)
+   Document-like. Headings top-left on a warm-gray rule with a short green
+   accent; green edge bar and wordmark on the title slide; quiet footer.
+   ========================================================================== */
+
+.reveal section.slide.level2:not(.statement):not(.zoomtour) > h2 {
+  position: relative; display: block;
+  padding-bottom: 22px; border-bottom: 2px solid var(--lt-line);
+}
+.reveal section.slide.level2:not(.statement):not(.zoomtour) > h2::after {
+  content: ""; position: absolute; left: 0; bottom: -5px;
+  width: 160px; height: 8px; background: var(--lt-primary);
+}
+
+/* title slide */
+.reveal #title-slide {
+  display: flex !important; flex-direction: column; justify-content: center;
+  padding-left: 180px;
+}
+.reveal #title-slide::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 36px; background: var(--lt-primary);
+}
+.reveal #title-slide::after {
+  content: ""; position: absolute; right: 112px; bottom: 88px; width: 520px; height: 82px;
+  background: url("../brand/logo-wordmark.svg") right center / contain no-repeat;
+}
+
+/* section dividers */
+.reveal section.slide.level1 {
+  display: flex !important; flex-direction: column; justify-content: center; padding-left: 180px;
+}
+.reveal section.slide.level1 > h1 {
+  display: inline-flex; align-items: center; gap: 40px;
+  padding-bottom: 28px; border-bottom: 2px solid var(--lt-line);
+}
+.reveal section.slide.level1 > h1::before {
+  content: ""; width: 96px; height: 122px; flex: none;
+  background: url("../brand/turtle.svg") center / contain no-repeat;
+}
+
+/* footer: turtle + name left, deck title + number right */
+.reveal .lt-footer { border-top: 1px solid var(--lt-line); padding-top: 16px; bottom: 32px; }

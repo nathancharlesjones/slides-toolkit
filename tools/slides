@@ -1,0 +1,7 @@
+#!/bin/sh
+# Build the slide decks in the current folder with the LightTurtles kit.
+# Install: ln -s "$(pwd)/slides" ~/.local/bin/slides      (run from the kit folder)
+# Usage:   slides -h
+WORK="$PWD"
+KIT="$(dirname "$(readlink -f "$0")")"
+cd "$KIT" && exec scons -Q WORK="$WORK" "$@"

@@ -1,0 +1,295 @@
+<script>
+/* Zoom tour: fly a camera around one big image/SVG, one stop per click.
+ *
+ * Markdown:
+ *   ## Inside an MCU {.zoomtour}
+ *   ![](mcu.svg)
+ *   [Caption for stop 1]{.zt-stop view="x y w h"}
+ *   [Caption for stop 2]{.zt-stop view="x y w h"}
+ *
+ * view = the rectangle to fill the screen, in the image's own pixel/viewBox
+ * units, or view="all" for the whole graphic. A view on the slide itself,
+ *   ## Inside an MCU {.zoomtour view="700 140 380 430"}
+ * is where the slide opens (default: all), so a stop can zoom *out* from it. Stops become reveal fragments, so forward/back, the speaker view,
+ * and PDF export (one page per stop) all work for free.
+ */
+(function () {
+  const W = () => Reveal.getConfig().width, H = () => Reveal.getConfig().height;
+
+  function setup(section) {
+    const media = section.querySelector('svg, img');
+    if (!media) return;
+    const fig = media.closest('figure') || media.closest('p') || media;
+
+    const stage = document.createElement('div'); stage.className = 'zt-stage';
+    const canvas = document.createElement('div'); canvas.className = 'zt-canvas';
+    const caption = document.createElement('div'); caption.className = 'zt-caption';
+    canvas.appendChild(media);
+    stage.appendChild(canvas);
+    fig.replaceWith(stage);
+    section.appendChild(caption);
+
+    const stops = [...section.querySelectorAll('.zt-stop')];
+    stops.forEach(s => s.classList.add('fragment'));
+    section._zt = { canvas, caption, stops, home: null, full: null };
+
+    const sized = (el, cw, ch) => {
+      section._zt.full = [0, 0, cw, ch];
+      // The slide's own view="…" (if any) is where it opens; otherwise the whole graphic.
+      section._zt.home = parseView(section._zt, section.dataset.view || section.getAttribute('view')) || allView(section._zt);
+      if (el.tagName.toLowerCase() === 'svg') {
+        // SVG: fill the stage and move the camera by rewriting its viewBox (crisp, prints correctly).
+        section._zt.svg = el;
+        el.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        el.style.width = W() + 'px'; el.style.height = H() + 'px';
+      } else {
+        // Raster: scale the image with a CSS transform.
+        el.style.width = cw + 'px'; el.style.height = ch + 'px';
+        canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+      }
+      update(section);
+    };
+    const viewBox = el => (el.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+
+    if (media.tagName.toLowerCase() === 'svg') {         // already inline
+      const [, , w, h] = viewBox(media); return sized(media, w, h);
+    }
+    const src = media.getAttribute('src') || media.getAttribute('data-src') || '';   // pandoc lazy-loads via data-src
+    const inline = txt => {                               // swap <img> for inline <svg>: stays crisp at any zoom
+      const svg = new DOMParser().parseFromString(txt, 'image/svg+xml').documentElement;
+      const [, , w, h] = viewBox(svg);
+      if (!(w && h)) return raster();
+      media.replaceWith(svg); sized(svg, w, h);
+    };
+    const m = src.match(/^data:image\/svg\+xml(;base64)?,(.*)$/s);
+    if (m) {                                              // embedded build: decode synchronously, no race
+      try { return inline(m[1] ? new TextDecoder().decode(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0)))
+                               : decodeURIComponent(m[2])); }
+      catch (e) { return raster(); }
+    }
+    if (/\.svg(\?|$)/.test(src)) return fetch(src).then(r => r.text()).then(inline).catch(raster);
+    raster();
+
+    function raster() {
+      const go = () => sized(media, media.naturalWidth, media.naturalHeight);
+      media.complete && media.naturalWidth ? go() : media.addEventListener('load', go, { once: true });
+    }
+  }
+
+  const isStatic = () => document.documentElement.classList.contains('zt-static');
+  const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+  const FIT_STOP = 0.8, FIT_ALL = 0.94;    // breathing room for the title tag and caption
+
+  // A view is a rectangle of the graphic plus how much of the screen it should fill.
+  //   view="x y w h"  → that rectangle, with room for the title tag and caption
+  //   view="all"      → the whole graphic, nearly edge to edge
+  const allView = zt => ({ rect: zt.full, fit: FIT_ALL });
+  function parseView(zt, text) {
+    if (!text) return null;
+    const t = String(text).trim().toLowerCase();
+    if (t === 'all' || t === 'full') return allView(zt);
+    const n = t.split(/[\s,]+/).map(Number);
+    if (n.length !== 4 || n.some(isNaN) || n[2] <= 0 || n[3] <= 0) {
+      console.warn('zoom tour: ignoring view="' + text + '" (want "x y w h" or "all")');
+      return null;
+    }
+    return { rect: n, fit: FIT_STOP };
+  }
+
+  // The camera is the rectangle of the image that fills the stage, in image units.
+  // It always has the stage's aspect ratio. setCam moves it (animated unless static).
+  function setCam(zt, to, animate = true) {
+    zt.cam = to;
+    if (!zt.svg) {                                     // raster: CSS transform
+      const s = W() / to[2];
+      zt.canvas.style.transform = `translate(${-to[0] * s}px, ${-to[1] * s}px) scale(${s})`;
+      return;
+    }
+    const from = zt.vb || to;                          // SVG: rewrite the viewBox (crisp, prints)
+    cancelAnimationFrame(zt.raf);
+    const set = v => { zt.vb = v; zt.svg.setAttribute('viewBox', v.join(' ')); };
+    if (!animate || isStatic() || !zt.vb) return set(to);
+    const t0 = performance.now(), dur = 1100;
+    const step = now => {
+      const k = ease(Math.min(1, (now - t0) / dur));
+      set(from.map((f, i) => f + (to[i] - f) * k));
+      if (k < 1) zt.raf = requestAnimationFrame(step);
+    };
+    zt.raf = requestAnimationFrame(step);
+  }
+
+  // A stop's view [x y w h] → the camera that shows it centred, with margin.
+  function camFor({ rect: [x, y, w, h], fit }) {
+    const s = fit * Math.min(W() / w, H() / h);
+    const vw = W() / s, vh = H() / s;
+    return [x + w / 2 - vw / 2, y + h / 2 - vh / 2, vw, vh];
+  }
+  const fly = (zt, view, animate) => setCam(zt, camFor(view), animate);
+
+  function update(section, animate = true) {
+    const zt = section && section._zt;
+    if (!zt || !zt.home) return;
+    const shown = zt.stops.filter(s => s.classList.contains('visible'));
+    const cur = shown[shown.length - 1];
+    const view = cur ? (parseView(zt, cur.getAttribute('view') || cur.dataset.view) || zt.home) : zt.home;
+    fly(zt, view, animate);
+    const text = cur ? cur.textContent.trim() : '';
+    zt.caption.textContent = text;
+    zt.caption.classList.toggle('on', !!text);
+  }
+
+  // ?static (used by `slides x.pdf`) jumps straight to each stop so exports never catch it mid-flight.
+  if (/[?&+]static\b/.test(location.search)) document.documentElement.classList.add('zt-static');
+
+  document.querySelectorAll('.reveal section.zoomtour').forEach(setup);
+
+  const sync = () => {
+    Reveal.sync();
+    const cur = Reveal.getCurrentSlide();
+    if (cur) update(cur);
+  };
+  if (Reveal.isReady()) sync(); else Reveal.on('ready', sync);
+  ['fragmentshown', 'fragmenthidden'].forEach(ev =>
+    Reveal.on(ev, e => update(Reveal.getCurrentSlide())));
+  // Arriving from another slide: be at this slide's view at once; flights are for stops.
+  Reveal.on('slidechanged', e => update(e.currentSlide || Reveal.getCurrentSlide(), false));
+  // PDF export lays out every slide at once: put each one in its final state.
+  Reveal.on('pdf-ready', () => document.querySelectorAll('section.zoomtour').forEach(update));
+
+  /* ---------------------------------------------------------------------
+   * View picker. On a zoom-tour slide press Z, then:
+   *   drag a box        → that box becomes a stop; the camera previews it exactly as the talk will
+   *   scroll            → zoom in/out at the cursor;  Shift-drag → pan
+   *   Enter             → make a stop from exactly what's on screen now
+   *   Backspace         → drop the last stop;  H → back to the slide's starting view;  V → hide/show this panel
+   *   Z or Esc          → done
+   * Each stop appears in the panel as a line to paste into the deck's Markdown.
+   * ------------------------------------------------------------------- */
+  let picking = null;                                  // { section, zt, layer, box, panel, list, picks }
+
+  const round = v => v.map(n => Math.round(n));
+  const stagePoint = (zt, e) => {                      // client px → slide px (reveal scales the slide)
+    const r = zt.canvas.parentElement.getBoundingClientRect();
+    return [(e.clientX - r.left) * W() / r.width, (e.clientY - r.top) * H() / r.height];
+  };
+  const toImage = (zt, [px, py]) => {                  // slide px → image units, through the camera
+    const [cx, cy, cw, ch] = zt.cam;
+    return [cx + px / W() * cw, cy + py / H() * ch];
+  };
+
+  async function copy(text, btn) {
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) {                                         // fallback for browsers that block the clipboard API
+      const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t);
+      t.select(); document.execCommand('copy'); t.remove();
+    }
+    if (btn) { const o = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => btn.textContent = o, 900); }
+  }
+
+  function render() {
+    const { list, picks } = picking;
+    list.innerHTML = '';
+    picks.forEach((v, i) => {
+      const line = `[Caption ${i + 1}]{.zt-stop view="${v.join(' ')}"}`;
+      const row = document.createElement('div'); row.className = 'zt-pick-row';
+      const code = document.createElement('code'); code.textContent = line;
+      const b = document.createElement('button'); b.textContent = 'Copy';
+      b.onclick = () => copy(line, b);
+      row.append(code, b); list.appendChild(row);
+    });
+    picking.copyAll.disabled = !picks.length;
+  }
+
+  function addPick(view) {
+    picking.picks.push(round(view));
+    render();
+    fly(picking.zt, { rect: picking.picks[picking.picks.length - 1], fit: FIT_STOP });
+  }
+
+  function startPicking(section) {
+    const zt = section._zt;
+    if (!zt || !zt.cam) return;
+    const layer = document.createElement('div'); layer.className = 'zt-pick';
+    const box = document.createElement('div'); box.className = 'zt-pick-box';
+    const panel = document.createElement('div'); panel.className = 'zt-pick-panel';
+    panel.innerHTML =
+      '<div class="zt-pick-title">Pick zoom stops</div>' +
+      '<div class="zt-pick-help"><b>Drag</b> a box to frame a stop · <b>Scroll</b> to zoom · <b>Shift-drag</b> to pan<br>' +
+      '<b>Enter</b> stop = current view · <b>Backspace</b> undo · <b>H</b> slide\'s start view · <b>V</b> hide panel · <b>Z</b>/<b>Esc</b> done</div>' +
+      '<div class="zt-pick-list"></div><button class="zt-pick-all">Copy all</button>';
+    layer.appendChild(box);
+    section.append(layer, panel);
+    picking = { section, zt, layer, box, panel, list: panel.querySelector('.zt-pick-list'),
+                copyAll: panel.querySelector('.zt-pick-all'), picks: [] };
+    picking.copyAll.onclick = e => copy(picking.picks.map((v, i) =>
+      `[Caption ${i + 1}]{.zt-stop view="${v.join(' ')}"}`).join('\n'), e.target);
+    render();
+    section.classList.add('zt-picking');
+
+    let drag = null;
+    layer.addEventListener('pointerdown', e => {
+      layer.setPointerCapture(e.pointerId);
+      drag = { start: stagePoint(zt, e), pan: e.shiftKey || e.button === 1, cam: zt.cam.slice() };
+      e.preventDefault();
+    });
+    layer.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const [px, py] = stagePoint(zt, e), [sx, sy] = drag.start;
+      if (drag.pan) {                                    // move the camera with the pointer
+        const k = drag.cam[2] / W();
+        setCam(zt, [drag.cam[0] - (px - sx) * k, drag.cam[1] - (py - sy) * k, drag.cam[2], drag.cam[3]], false);
+        return;
+      }
+      Object.assign(box.style, { display: 'block', left: Math.min(px, sx) + 'px', top: Math.min(py, sy) + 'px',
+        width: Math.abs(px - sx) + 'px', height: Math.abs(py - sy) + 'px' });
+    });
+    layer.addEventListener('pointerup', e => {
+      if (!drag) return;
+      const end = stagePoint(zt, e), was = drag; drag = null; box.style.display = 'none';
+      if (was.pan) return;
+      if (Math.abs(end[0] - was.start[0]) < 12 || Math.abs(end[1] - was.start[1]) < 12) return;   // a click, not a box
+      const [ax, ay] = toImage(zt, was.start), [bx, by] = toImage(zt, end);
+      addPick([Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay)]);
+    });
+    layer.addEventListener('wheel', e => {               // zoom about the cursor
+      e.preventDefault();
+      const k = Math.exp(e.deltaY * 0.0015), [ix, iy] = toImage(zt, stagePoint(zt, e)), [cx, cy, cw, ch] = zt.cam;
+      setCam(zt, [ix - (ix - cx) * k, iy - (iy - cy) * k, cw * k, ch * k], false);
+    }, { passive: false });
+  }
+
+  function stopPicking() {
+    if (!picking) return;
+    const { section, layer, panel } = picking;
+    layer.remove(); panel.remove(); section.classList.remove('zt-picking');
+    picking = null;
+    update(section);                                     // back to the stop you were on
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input, textarea, [contenteditable]')) return;
+    const k = e.key;
+    if (!picking) {
+      const cur = Reveal.getCurrentSlide();
+      if ((k === 'z' || k === 'Z') && cur && cur._zt && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        startPicking(cur); e.preventDefault(); e.stopImmediatePropagation();
+      }
+      return;
+    }
+    const zt = picking.zt;
+    if (k === 'z' || k === 'Z' || k === 'Escape') stopPicking();
+    else if (k === 'Enter') {                            // a stop that plays back as exactly this screen
+      const [cx, cy, cw, ch] = zt.cam, f = FIT_STOP;
+      addPick([cx + cw * (1 - f) / 2, cy + ch * (1 - f) / 2, cw * f, ch * f]);
+    }
+    else if (k === 'Backspace') { picking.picks.pop(); render(); }
+    else if (k === 'h' || k === 'H') fly(zt, zt.home);
+    else if (k === 'v' || k === 'V') picking.panel.classList.toggle('zt-hidden');
+    else return;                                         // anything else: let reveal have it
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
+  Reveal.on('slidechanged', stopPicking);
+  if (Reveal.registerKeyboardShortcut) Reveal.registerKeyboardShortcut('Z', 'Zoom tour: pick stop views');
+})();
+</script>

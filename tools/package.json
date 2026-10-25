@@ -1,0 +1,16 @@
+{
+  "name": "lightturtles-slides",
+  "version": "1.0.0",
+  "description": "Markdown → reveal.js slide toolkit",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "reveal.js": "^5.2.1"
+  },
+  "devDependencies": {
+    "decktape": "^3.17.0"
+  },
+  "private": true
+}

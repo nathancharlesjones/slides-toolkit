@@ -1,0 +1,115 @@
+<script>
+/* Hidden slides.
+ *   ## Backup: detailed timing {.hidden}     a slide the audience never sees
+ *   # Wrap-up {.hidden}                      a section that groups slides but shows no divider
+ *   # {.hidden}                              same, without even a name
+ *
+ * Hidden slides are taken out of the deck when it loads: not shown, not in the overview,
+ * not counted in "n / N", not in the PDF. Shift+H puts them back in place (tagged HIDDEN)
+ * and takes them out again — for rehearsal, Q&A backup slides, or checking structure.
+ * A deck opened with ?showhidden starts with them shown (used by `slides talk.pdf HIDDEN=show`).
+ *
+ * Hidden is not secret: the slides are still inside the .html file.
+ */
+(function () {
+  const params = new URLSearchParams(location.search);
+  const isReceiver = params.has('receiver');               // a speaker-view preview of this deck
+  const flags = location.search.slice(1).split(/[&+]/);       // ?static+showhidden (no shell-special &)
+  let shown = flags.includes('showhidden');
+  let removed = [];                                         // [{ el, ph }] in removal order
+
+  const leaves = () => [...document.querySelectorAll('.reveal .slides section')]
+    .filter(s => !s.querySelector('section'));
+
+  document.querySelectorAll('.reveal .slides section.hidden').forEach(s => {
+    const tag = document.createElement('div');
+    tag.className = 'lt-hidden-tag'; tag.textContent = 'HIDDEN';
+    s.appendChild(tag);
+  });
+
+  // Which top-level sections are "# Section" groups (hold slides of their own), noted once.
+  const groups = [...document.querySelectorAll('.reveal .slides > section')].filter(s => s.querySelector(':scope > section'));
+
+  function hide() {
+    removed = [];
+    const take = el => { const ph = document.createComment('hidden slide'); el.replaceWith(ph); removed.push({ el, ph }); };
+    document.querySelectorAll('.reveal .slides section.hidden').forEach(take);
+    // A group whose slides were all hidden would otherwise turn into one blank slide.
+    groups.forEach(g => { if (g.isConnected && !g.querySelector(':scope > section')) take(g); });
+  }
+  function show() {
+    for (const { el, ph } of removed.slice().reverse()) ph.replaceWith(el);
+    removed = [];
+  }
+
+  // Apply a state, keeping the presenter on the same slide (or the nearest visible one).
+  let applied = false;
+  function apply(wantShown) {
+    if (applied && wantShown === shown) return;
+    applied = true;
+    if (isReceiver) {                      // a speaker-view preview: swap slides quietly; the
+      wantShown ? show() : hide();         // speaker view tells it where to be right after
+      shown = wantShown; Reveal.sync(); return;
+    }
+    const cur = Reveal.getCurrentSlide(), f = Reveal.getIndices().f;
+    let target = cur;
+    if (!wantShown && cur && cur.closest('section.hidden')) {
+      const all = leaves(), i = all.indexOf(cur);
+      target = all.slice(0, i).reverse().find(s => !s.closest('section.hidden'))
+            || all.slice(i + 1).find(s => !s.closest('section.hidden'));
+    }
+    wantShown ? show() : hide();
+    shown = wantShown;
+    const overview = Reveal.isOverview && Reveal.isOverview();
+    Reveal.sync();
+    if (target && target.isConnected) {
+      const i = Reveal.getIndices(target);
+      Reveal.slide(i.h, i.v, target === cur ? f : undefined);
+    }
+    if (overview) { Reveal.toggleOverview(false); Reveal.toggleOverview(true); }   // re-lay the grid
+    tellSpeakerView();
+    // We stayed on the same slide, so reveal sends no "slidechanged" and the speaker view's
+    // "next" preview would still point at the old next slide. Send one so it re-syncs.
+    // (Short delay: the previews must apply the new slide set before they're told where to go.)
+    if (!isReceiver && speaker) setTimeout(() => {
+      const ev = new CustomEvent('slidechanged', { bubbles: true });
+      Object.assign(ev, { currentSlide: Reveal.getCurrentSlide(), indexh: Reveal.getIndices().h, indexv: Reveal.getIndices().v });
+      document.querySelector('.reveal').dispatchEvent(ev);
+    }, 250);
+  }
+
+  /* Keep the speaker view's previews in step: they follow this window by slide position,
+     so they need the same set of slides. */
+  let speaker = null;
+  function tellSpeakerView() {
+    if (!speaker) return;
+    try { for (let i = 0; i < speaker.frames.length; i++) speaker.frames[i].postMessage({ ltHidden: shown }, '*'); }
+    catch (e) { /* speaker window closed */ }
+  }
+  window.addEventListener('message', e => {
+    const d = e.data;
+    if (d && d.ltHiddenQuery) { e.source.postMessage({ ltHidden: shown }, '*'); return; }   // a preview asking
+    if (d && typeof d.ltHidden === 'boolean') { apply(d.ltHidden); return; }               // we are a preview
+    if (!isReceiver && e.source && e.source !== window) {
+      try { if (typeof d === 'string' && d.includes('reveal-notes')) speaker = e.source; } catch (_) {}
+      if (d && d.namespace === 'reveal-notes') speaker = e.source;
+    }
+  });
+
+  const start = () => {
+    if (!shown) apply(false);
+    if (isReceiver) {                       // ask the presenting window which mode it's in
+      try { window.parent.opener && window.parent.opener.postMessage({ ltHiddenQuery: true }, '*'); } catch (_) {}
+    }
+  };
+  if (Reveal.isReady()) start(); else Reveal.on('ready', start);
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'H' || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.target.closest && e.target.closest('input, textarea, [contenteditable]')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    apply(!shown);
+  }, true);
+  if (Reveal.registerKeyboardShortcut) Reveal.registerKeyboardShortcut('Shift + H', 'Show / hide hidden slides');
+})();
+</script>
