@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" font-family="IBM Plex Mono, monospace">
+  <rect width="1600" height="900" fill="#f8f7f3"/>
+  <!-- die outline -->
+  <rect x="60" y="60" width="1480" height="780" rx="24" fill="#fff" stroke="#1e1e1e" stroke-width="4"/>
+  <text x="90" y="110" font-size="26" font-weight="700" fill="#6e6a64">MCU die (simplified)</text>
+
+  <!-- CPU -->
+  <g>
+    <rect x="110" y="150" width="420" height="300" rx="14" fill="#046307"/>
+    <text x="140" y="205" font-size="40" font-weight="700" fill="#fff">CPU core</text>
+    <rect x="140" y="235" width="160" height="80" rx="8" fill="#fff" opacity=".9"/>
+    <text x="158" y="285" font-size="22" fill="#1e1e1e">Registers</text>
+    <rect x="320" y="235" width="180" height="80" rx="8" fill="#fff" opacity=".9"/>
+    <text x="348" y="285" font-size="22" fill="#1e1e1e">ALU / FPU</text>
+    <rect x="140" y="335" width="360" height="80" rx="8" fill="#fff" opacity=".9"/>
+    <text x="158" y="385" font-size="22" fill="#1e1e1e">Fetch · Decode · Execute</text>
+  </g>
+
+  <!-- Bus matrix -->
+  <rect x="580" y="150" width="90" height="640" rx="10" fill="#b08d57"/>
+  <text x="635" y="470" font-size="30" font-weight="700" fill="#1e1e1e" transform="rotate(-90 635 470)" text-anchor="middle">Bus matrix</text>
+  <path d="M530 300 H580" stroke="#1e1e1e" stroke-width="10"/>
+
+  <!-- Memories -->
+  <rect x="720" y="150" width="340" height="190" rx="14" fill="#efede6" stroke="#1e1e1e" stroke-width="3"/>
+  <text x="750" y="205" font-size="38" font-weight="700" fill="#1e1e1e">Flash</text>
+  <text x="750" y="250" font-size="20" fill="#6e6a64">code + constants</text>
+  <text x="750" y="290" font-size="20" fill="#6e6a64">non-volatile, slow writes</text>
+
+  <rect x="720" y="370" width="340" height="190" rx="14" fill="#efede6" stroke="#1e1e1e" stroke-width="3"/>
+  <text x="750" y="425" font-size="38" font-weight="700" fill="#1e1e1e">SRAM</text>
+  <text x="750" y="470" font-size="20" fill="#6e6a64">stack, heap, .data, .bss</text>
+  <text x="750" y="510" font-size="20" fill="#6e6a64">volatile, fast</text>
+  <path d="M670 245 H720 M670 465 H720" stroke="#1e1e1e" stroke-width="10"/>
+
+  <!-- Peripherals -->
+  <rect x="1110" y="150" width="380" height="640" rx="14" fill="#fff" stroke="#1e1e1e" stroke-width="3"/>
+  <text x="1140" y="205" font-size="38" font-weight="700" fill="#1e1e1e">Peripherals</text>
+  <g font-size="28" fill="#1e1e1e">
+    <rect x="1140" y="235" width="320" height="76" rx="8" fill="#efede6"/><text x="1165" y="283">GPIO</text>
+    <rect x="1140" y="325" width="320" height="76" rx="8" fill="#efede6"/><text x="1165" y="373">UART · SPI · I²C</text>
+    <rect x="1140" y="415" width="320" height="76" rx="8" fill="#efede6"/><text x="1165" y="463">Timers / PWM</text>
+    <rect x="1140" y="505" width="320" height="76" rx="8" fill="#efede6"/><text x="1165" y="553">ADC · DAC</text>
+    <rect x="1140" y="595" width="320" height="76" rx="8" fill="#efede6"/><text x="1165" y="643">Crypto / RNG</text>
+  </g>
+  <path d="M670 700 H1110" stroke="#1e1e1e" stroke-width="10"/>
+  <text x="760" y="690" font-size="20" fill="#6e6a64">APB/AHB peripheral bus</text>
+
+  <!-- Debug -->
+  <rect x="110" y="500" width="420" height="290" rx="14" fill="#1e1e1e"/>
+  <text x="140" y="555" font-size="38" font-weight="700" fill="#f8f7f3">Debug port</text>
+  <text x="140" y="605" font-size="26" fill="#c9c9c4">SWD / JTAG</text>
+  <text x="140" y="650" font-size="21" fill="#c9c9c4">halt · step · read any address</text>
+  <text x="140" y="740" font-size="22" fill="#e08a55">← an attacker's favorite door</text>
+  <path d="M530 640 H580" stroke="#1e1e1e" stroke-width="10"/>
+</svg>
